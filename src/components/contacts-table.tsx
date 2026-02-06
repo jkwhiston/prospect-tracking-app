@@ -220,7 +220,7 @@ function EditableDateCell({
           onChange={(e) => setEditValue(e.target.value)}
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
-          className="h-8 w-[140px]"
+          className="h-8 w-[130px]"
           autoFocus
           disabled={isSaving}
         />
@@ -273,7 +273,7 @@ function EditableSelectCell<T extends string>({
   return (
     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
       <Select value={value || "none"} onValueChange={handleChange} disabled={isSaving}>
-        <SelectTrigger className="h-8 w-[120px] border-0 bg-transparent hover:bg-muted/50">
+        <SelectTrigger className="h-8 w-auto border-0 bg-transparent hover:bg-muted/50">
           <SelectValue>
             {renderValue ? renderValue(value) : (value || <span className="text-muted-foreground">{placeholder}</span>)}
           </SelectValue>
@@ -317,13 +317,14 @@ function EditableCheckbox({
         checked={checked}
         onCheckedChange={handleChange}
         disabled={isSaving}
+        className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500"
       />
       {isSaving && <Loader2 className="h-3 w-3 animate-spin" />}
     </div>
   );
 }
 
-// Truncated text with view button for markdown fields
+// Icon-only cell for markdown fields
 function MarkdownCell({
   value,
   onView,
@@ -331,8 +332,6 @@ function MarkdownCell({
   value: string | null;
   onView: () => void;
 }) {
-  const truncated = value ? (value.length > 50 ? value.substring(0, 50) + "..." : value) : null;
-  
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onView();
@@ -340,13 +339,14 @@ function MarkdownCell({
   
   return (
     <div 
-      className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 px-2 py-1 rounded -mx-2 -my-1 transition-colors" 
+      className="flex items-center justify-center cursor-pointer hover:bg-muted/50 p-1 rounded transition-colors" 
       onClick={handleClick}
     >
-      <span className="truncate max-w-[150px] text-sm">
-        {truncated || <span className="text-muted-foreground">—</span>}
-      </span>
-      <Eye className="h-3 w-3 shrink-0 text-muted-foreground" />
+      {value ? (
+        <Eye className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+      ) : (
+        <span className="text-muted-foreground hover:text-foreground">—</span>
+      )}
     </div>
   );
 }
@@ -420,7 +420,7 @@ export function ContactsTable({
             value={row.original.name}
             onSave={(value) => onFieldUpdate(row.original.id, "name", value)}
             placeholder="Enter name"
-            className="font-medium"
+            className="font-bold"
           />
         ),
       },
@@ -445,11 +445,30 @@ export function ContactsTable({
       },
       {
         accessorKey: "brief",
-        header: "Brief",
+        header: "Briefs",
         cell: ({ row }) => (
           <MarkdownCell
             value={row.original.brief}
             onView={() => onViewMarkdown(row.original, "brief")}
+          />
+        ),
+      },
+      {
+        accessorKey: "temperature",
+        header: "Temp",
+        cell: ({ row }) => (
+          <EditableSelectCell
+            value={row.original.temperature}
+            options={TEMPERATURES}
+            onSave={(value) => onFieldUpdate(row.original.id, "temperature", value)}
+            placeholder="—"
+            renderValue={(v) =>
+              v ? (
+                <Badge variant={getTemperatureBadgeVariant(v)}>{v}</Badge>
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              )
+            }
           />
         ),
       },
@@ -515,7 +534,7 @@ export function ContactsTable({
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
             className="-ml-4"
           >
-            Follow Up
+            Next Follow Up
             <ArrowUpDown className="ml-2 h-4 w-4" />
           </Button>
         ),
@@ -524,25 +543,6 @@ export function ContactsTable({
             value={row.original.next_follow_up}
             onSave={(value) => onFieldUpdate(row.original.id, "next_follow_up", value)}
             colorClass={getFollowUpColor(row.original.next_follow_up)}
-          />
-        ),
-      },
-      {
-        accessorKey: "temperature",
-        header: "Temp",
-        cell: ({ row }) => (
-          <EditableSelectCell
-            value={row.original.temperature}
-            options={TEMPERATURES}
-            onSave={(value) => onFieldUpdate(row.original.id, "temperature", value)}
-            placeholder="—"
-            renderValue={(v) =>
-              v ? (
-                <Badge variant={getTemperatureBadgeVariant(v)}>{v}</Badge>
-              ) : (
-                <span className="text-muted-foreground">—</span>
-              )
-            }
           />
         ),
       },
@@ -735,7 +735,7 @@ export function ContactsTable({
                       : column.id === "last_touchpoint"
                       ? "Last Touch"
                       : column.id === "next_follow_up"
-                      ? "Follow Up"
+                      ? "Next Follow Up"
                       : column.id === "proposal_sent"
                       ? "Proposal"
                       : column.id === "referral_source"

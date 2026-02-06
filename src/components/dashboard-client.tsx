@@ -521,6 +521,7 @@ export function DashboardClient() {
         isOpen={markdownModal.isOpen}
         onClose={() => setMarkdownModal({ isOpen: false, contact: null, field: "brief" })}
         title={markdownModal.field === "brief" ? "Brief" : "Notes"}
+        contactName={markdownModal.contact?.name}
         value={markdownModal.contact?.[markdownModal.field] || null}
         onSave={handleSaveMarkdown}
       />

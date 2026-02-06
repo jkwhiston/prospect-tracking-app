@@ -18,6 +18,7 @@ interface MarkdownModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
+  contactName?: string;
   value: string | null;
   onSave: (value: string) => Promise<void>;
 }
@@ -26,6 +27,7 @@ export function MarkdownModal({
   isOpen,
   onClose,
   title,
+  contactName,
   value,
   onSave,
 }: MarkdownModalProps) {
@@ -34,10 +36,20 @@ export function MarkdownModal({
   const [isSaving, setIsSaving] = useState(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Reset editing state only when modal opens
   useEffect(() => {
-    setEditValue(value || "");
-    setIsEditing(false);
-  }, [value, isOpen]);
+    if (isOpen) {
+      setEditValue(value || "");
+      setIsEditing(false);
+    }
+  }, [isOpen]);
+
+  // Sync editValue when value prop changes (but don't reset isEditing)
+  useEffect(() => {
+    if (!isEditing) {
+      setEditValue(value || "");
+    }
+  }, [value, isEditing]);
 
   // Auto-save with debouncing
   const handleAutoSave = async (newValue: string) => {
@@ -82,6 +94,8 @@ export function MarkdownModal({
         setIsSaving(false);
       }
     }
+    // Switch back to display mode (modal stays open)
+    setIsEditing(false);
   };
 
   const handleClose = () => {
@@ -111,7 +125,7 @@ export function MarkdownModal({
       <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between pr-8">
-            <span>{title}</span>
+            <span>{contactName ? `${title} — ${contactName}` : title}</span>
             <div className="flex items-center gap-2">
               <CopyButton value={editValue} label={title} />
               {isSaving && (
@@ -121,7 +135,7 @@ export function MarkdownModal({
           </DialogTitle>
           <DialogDescription>
             {isEditing 
-              ? "Click outside to save automatically" 
+              ? "Changes save automatically" 
               : "Click the content below to edit (Markdown supported)"}
           </DialogDescription>
         </DialogHeader>
