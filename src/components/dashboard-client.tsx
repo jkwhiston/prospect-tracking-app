@@ -1,0 +1,529 @@
+"use client";
+
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ContactsTable } from "@/components/contacts-table";
+import { ContactSheet } from "@/components/contact-sheet";
+import { MarkdownModal } from "@/components/markdown-modal";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Plus, Download, Upload, Settings, Search } from "lucide-react";
+import { createBrowserClient } from "@/lib/supabase/browser";
+import type { Contact, ContactStatus, Temperature, ReferralType } from "@/types/contact";
+import { TEMPERATURES, REFERRAL_TYPES } from "@/types/contact";
+import { useToast } from "@/hooks/use-toast";
+
+export function DashboardClient() {
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<ContactStatus>("Prospect");
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isNewContact, setIsNewContact] = useState(false);
+  
+  // Markdown modal state
+  const [markdownModal, setMarkdownModal] = useState<{
+    isOpen: boolean;
+    contact: Contact | null;
+    field: "brief" | "notes";
+  }>({ isOpen: false, contact: null, field: "brief" });
+  
+  // Filters
+  const [searchQuery, setSearchQuery] = useState("");
+  const [temperatureFilter, setTemperatureFilter] = useState<Temperature | "all">("all");
+  const [proposalFilter, setProposalFilter] = useState<"all" | "yes" | "no">("all");
+  const [referralTypeFilter, setReferralTypeFilter] = useState<ReferralType | "all">("all");
+  
+  const { toast } = useToast();
+  const supabase = useMemo(() => createBrowserClient(), []);
+
+  const fetchContacts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("contacts")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setContacts(data || []);
+    } catch (error) {
+      console.error("Error fetching contacts:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load contacts. Please check your Supabase connection.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase, toast]);
+
+  useEffect(() => {
+    fetchContacts();
+  }, [fetchContacts]);
+
+  // Filter contacts by status and other criteria
+  const filteredContacts = useMemo(() => {
+    return contacts.filter((contact) => {
+      // Status filter (from tab)
+      // NULL status contacts should appear in Prospect tab
+      if (activeTab === "Prospect") {
+        if (contact.status !== "Prospect" && contact.status !== null) return false;
+      } else {
+        if (contact.status !== activeTab) return false;
+      }
+      
+      // Search filter
+      if (searchQuery && !contact.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return false;
+      }
+      
+      // Temperature filter
+      if (temperatureFilter !== "all" && contact.temperature !== temperatureFilter) {
+        return false;
+      }
+      
+      // Proposal sent filter
+      if (proposalFilter === "yes" && !contact.proposal_sent) return false;
+      if (proposalFilter === "no" && contact.proposal_sent) return false;
+      
+      // Referral type filter
+      if (referralTypeFilter !== "all" && contact.referral_type !== referralTypeFilter) {
+        return false;
+      }
+      
+      return true;
+    });
+  }, [contacts, activeTab, searchQuery, temperatureFilter, proposalFilter, referralTypeFilter]);
+
+  const handleAddContact = () => {
+    setSelectedContact(null);
+    setIsNewContact(true);
+    setIsSheetOpen(true);
+  };
+
+  const handleEditContact = (contact: Contact) => {
+    setSelectedContact(contact);
+    setIsNewContact(false);
+    setIsSheetOpen(true);
+  };
+
+  const handleContactSaved = () => {
+    fetchContacts();
+    setIsSheetOpen(false);
+    setSelectedContact(null);
+  };
+
+  const handleStatusChange = async (contact: Contact, newStatus: ContactStatus) => {
+    try {
+      const { error } = await supabase
+        .from("contacts")
+        .update({ status: newStatus })
+        .eq("id", contact.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Status Updated",
+        description: `${contact.name} has been moved to ${newStatus}.`,
+      });
+
+      fetchContacts();
+    } catch (error) {
+      console.error("Error updating status:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update contact status.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteContact = async (contact: Contact) => {
+    try {
+      const { error } = await supabase
+        .from("contacts")
+        .delete()
+        .eq("id", contact.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Contact Deleted",
+        description: `${contact.name} has been permanently deleted.`,
+      });
+
+      fetchContacts();
+    } catch (error) {
+      console.error("Error deleting contact:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete contact.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Inline field update handler
+  const handleFieldUpdate = async (contactId: string, field: string, value: unknown) => {
+    try {
+      const { error } = await supabase
+        .from("contacts")
+        .update({ [field]: value })
+        .eq("id", contactId);
+
+      if (error) throw error;
+
+      // Update local state optimistically
+      setContacts((prev) =>
+        prev.map((c) =>
+          c.id === contactId ? { ...c, [field]: value } : c
+        )
+      );
+
+      toast({
+        title: "Updated",
+        description: "Field updated successfully.",
+      });
+    } catch (error) {
+      console.error("Error updating field:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update field.",
+        variant: "destructive",
+      });
+      // Refetch to revert optimistic update
+      fetchContacts();
+    }
+  };
+
+  // View markdown modal handler
+  const handleViewMarkdown = (contact: Contact, field: "brief" | "notes") => {
+    setMarkdownModal({ isOpen: true, contact, field });
+  };
+
+  // Save markdown from modal
+  const handleSaveMarkdown = async (value: string) => {
+    if (!markdownModal.contact) return;
+    
+    try {
+      const { error } = await supabase
+        .from("contacts")
+        .update({ [markdownModal.field]: value })
+        .eq("id", markdownModal.contact.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setContacts((prev) =>
+        prev.map((c) =>
+          c.id === markdownModal.contact!.id
+            ? { ...c, [markdownModal.field]: value }
+            : c
+        )
+      );
+
+      // Update modal contact state
+      setMarkdownModal((prev) => ({
+        ...prev,
+        contact: prev.contact
+          ? { ...prev.contact, [markdownModal.field]: value }
+          : null,
+      }));
+
+      toast({
+        title: "Saved",
+        description: `${markdownModal.field === "brief" ? "Brief" : "Notes"} updated successfully.`,
+      });
+    } catch (error) {
+      console.error("Error saving markdown:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save content.",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("contacts")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const jsonString = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `contacts-export-${new Date().toISOString().split("T")[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export Complete",
+        description: `Exported ${data?.length || 0} contacts.`,
+      });
+    } catch (error) {
+      console.error("Error exporting contacts:", error);
+      toast({
+        title: "Error",
+        description: "Failed to export contacts.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const importedContacts = JSON.parse(text);
+
+      if (!Array.isArray(importedContacts)) {
+        throw new Error("Invalid JSON format. Expected an array of contacts.");
+      }
+
+      // Remove id and created_at from imported contacts to let Supabase generate new ones
+      const contactsToInsert = importedContacts.map((contact: Record<string, unknown>) => {
+        const { id, created_at, ...rest } = contact;
+        return rest;
+      });
+
+      const { error } = await supabase
+        .from("contacts")
+        .insert(contactsToInsert);
+
+      if (error) throw error;
+
+      toast({
+        title: "Import Complete",
+        description: `Successfully imported ${contactsToInsert.length} contacts.`,
+      });
+
+      fetchContacts();
+    } catch (error) {
+      console.error("Error importing contacts:", error);
+      toast({
+        title: "Import Error",
+        description: error instanceof Error ? error.message : "Failed to import contacts.",
+        variant: "destructive",
+      });
+    }
+
+    // Reset the file input
+    event.target.value = "";
+  };
+
+  return (
+    <div className="container max-w-screen-2xl px-4 py-6">
+      {/* Header with title and actions */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Prospects Dashboard</h1>
+          <p className="text-muted-foreground">
+            Manage and track your tax firm prospects
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button onClick={handleAddContact}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Contact
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExport}>
+                <Download className="mr-2 h-4 w-4" />
+                Export JSON
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <label className="cursor-pointer flex items-center">
+                  <Upload className="mr-2 h-4 w-4" />
+                  Import JSON
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleImport}
+                    className="hidden"
+                  />
+                </label>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* Tabs for status filtering */}
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ContactStatus)}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="Prospect">
+            Prospects
+            <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs">
+              {contacts.filter((c) => c.status === "Prospect" || c.status === null).length}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="Signed On">
+            Signed On
+            <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs">
+              {contacts.filter((c) => c.status === "Signed On").length}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="Archived">
+            Archived
+            <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs">
+              {contacts.filter((c) => c.status === "Archived").length}
+            </span>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Filters */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-center mb-4">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search by name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Select
+              value={temperatureFilter}
+              onValueChange={(value) => setTemperatureFilter(value as Temperature | "all")}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Temperature" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Temps</SelectItem>
+                {TEMPERATURES.map((temp) => (
+                  <SelectItem key={temp} value={temp}>
+                    {temp}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={proposalFilter}
+              onValueChange={(value) => setProposalFilter(value as "all" | "yes" | "no")}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Proposal" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="yes">Sent</SelectItem>
+                <SelectItem value="no">Not Sent</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={referralTypeFilter}
+              onValueChange={(value) => setReferralTypeFilter(value as ReferralType | "all")}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Referral" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Referrals</SelectItem>
+                {REFERRAL_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Counter */}
+        <div className="mb-4 text-sm text-muted-foreground">
+          Total Active {activeTab === "Prospect" ? "Prospects" : activeTab}: {" "}
+          <span className="font-semibold text-foreground">{filteredContacts.length}</span>
+        </div>
+
+        {/* Table content */}
+        <TabsContent value="Prospect" className="mt-0">
+          <ContactsTable
+            contacts={filteredContacts}
+            loading={loading}
+            onEdit={handleEditContact}
+            onStatusChange={handleStatusChange}
+            onDelete={handleDeleteContact}
+            onFieldUpdate={handleFieldUpdate}
+            onViewMarkdown={handleViewMarkdown}
+          />
+        </TabsContent>
+        <TabsContent value="Signed On" className="mt-0">
+          <ContactsTable
+            contacts={filteredContacts}
+            loading={loading}
+            onEdit={handleEditContact}
+            onStatusChange={handleStatusChange}
+            onDelete={handleDeleteContact}
+            onFieldUpdate={handleFieldUpdate}
+            onViewMarkdown={handleViewMarkdown}
+          />
+        </TabsContent>
+        <TabsContent value="Archived" className="mt-0">
+          <ContactsTable
+            contacts={filteredContacts}
+            loading={loading}
+            onEdit={handleEditContact}
+            onStatusChange={handleStatusChange}
+            onDelete={handleDeleteContact}
+            onFieldUpdate={handleFieldUpdate}
+            onViewMarkdown={handleViewMarkdown}
+          />
+        </TabsContent>
+      </Tabs>
+
+      {/* Contact Sheet */}
+      <ContactSheet
+        contact={selectedContact}
+        isOpen={isSheetOpen}
+        isNew={isNewContact}
+        onClose={() => setIsSheetOpen(false)}
+        onSaved={handleContactSaved}
+      />
+
+      {/* Markdown Modal for Brief/Notes */}
+      <MarkdownModal
+        isOpen={markdownModal.isOpen}
+        onClose={() => setMarkdownModal({ isOpen: false, contact: null, field: "brief" })}
+        title={markdownModal.field === "brief" ? "Brief" : "Notes"}
+        value={markdownModal.contact?.[markdownModal.field] || null}
+        onSave={handleSaveMarkdown}
+      />
+    </div>
+  );
+}
