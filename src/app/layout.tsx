@@ -8,6 +8,9 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Prospect Tracker",
   description: "Professional prospect tracking tool for tax firms",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
