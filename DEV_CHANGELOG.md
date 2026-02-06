@@ -52,11 +52,19 @@ This document tracks development changes for AI agents and developers working on
 - NULL status contacts now appear in Prospects tab
 - Changed placeholder from "Status" to "Select..." to prevent confusion
 
+### Favicon
+- Added SVG favicon (`src/app/icon.svg`) with users/people icon
+- White icon on blue background (`#3b82f6`)
+- File size: 514 bytes
+- Added icon metadata to `layout.tsx`
+
 ---
 
 ## Architecture Notes
 
 ### Key Files
+- `src/app/layout.tsx` - Root layout with header and metadata
+- `src/app/icon.svg` - Favicon (users/people icon)
 - `src/components/contacts-table.tsx` - Main table with inline editing
 - `src/components/dashboard-client.tsx` - Dashboard with tabs and filters
 - `src/components/markdown-modal.tsx` - Modal for viewing/editing Briefs and Notes

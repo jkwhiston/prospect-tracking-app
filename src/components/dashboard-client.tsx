@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ContactsTable } from "@/components/contacts-table";
 import { ContactSheet } from "@/components/contact-sheet";
 import { MarkdownModal } from "@/components/markdown-modal";
+import { ImportJsonModal } from "@/components/import-json-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,8 +23,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Plus, Download, Upload, Settings, Search } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase/browser";
-import type { Contact, ContactStatus, Temperature, ReferralType } from "@/types/contact";
-import { TEMPERATURES, REFERRAL_TYPES } from "@/types/contact";
+import type { Contact, ContactInsert, ContactStatus, Temperature, ReferralType, GoodFit } from "@/types/contact";
+import { TEMPERATURES, REFERRAL_TYPES, CONTACT_STATUSES, GOOD_FIT_OPTIONS } from "@/types/contact";
 import { useToast } from "@/hooks/use-toast";
 
 export function DashboardClient() {
@@ -40,6 +41,9 @@ export function DashboardClient() {
     contact: Contact | null;
     field: "brief" | "notes";
   }>({ isOpen: false, contact: null, field: "brief" });
+  
+  // Import modal state
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -294,47 +298,105 @@ export function DashboardClient() {
     }
   };
 
-  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  // Helper function to normalize a contact for import (tolerant to missing/extra fields)
+  const normalizeContactForImport = (contact: Record<string, unknown>): ContactInsert | null => {
+    // Valid fields for ContactInsert (excluding id and created_at which are auto-generated)
+    const validStatuses: ContactStatus[] = CONTACT_STATUSES;
+    const validTemperatures: Temperature[] = TEMPERATURES;
+    const validReferralTypes: ReferralType[] = REFERRAL_TYPES;
+    const validGoodFitOptions: GoodFit[] = GOOD_FIT_OPTIONS;
 
-    try {
-      const text = await file.text();
-      const importedContacts = JSON.parse(text);
+    // Helper to convert empty strings to null
+    const emptyToNull = (value: unknown): string | null => {
+      if (value === null || value === undefined) return null;
+      const str = String(value).trim();
+      return str === "" ? null : str;
+    };
 
-      if (!Array.isArray(importedContacts)) {
-        throw new Error("Invalid JSON format. Expected an array of contacts.");
-      }
+    // Helper to convert to boolean
+    const toBoolean = (value: unknown): boolean => {
+      if (value === true || value === "true" || value === 1 || value === "1") return true;
+      return false;
+    };
 
-      // Remove id and created_at from imported contacts to let Supabase generate new ones
-      const contactsToInsert = importedContacts.map((contact: Record<string, unknown>) => {
-        const { id, created_at, ...rest } = contact;
-        return rest;
-      });
+    // Helper to validate enum values
+    const validateEnum = <T extends string>(value: unknown, validValues: T[]): T | null => {
+      if (value === null || value === undefined || value === "") return null;
+      const str = String(value);
+      return validValues.includes(str as T) ? (str as T) : null;
+    };
 
-      const { error } = await supabase
-        .from("contacts")
-        .insert(contactsToInsert);
-
-      if (error) throw error;
-
-      toast({
-        title: "Import Complete",
-        description: `Successfully imported ${contactsToInsert.length} contacts.`,
-      });
-
-      fetchContacts();
-    } catch (error) {
-      console.error("Error importing contacts:", error);
-      toast({
-        title: "Import Error",
-        description: error instanceof Error ? error.message : "Failed to import contacts.",
-        variant: "destructive",
-      });
+    // Extract and validate name (required field)
+    const name = emptyToNull(contact.name);
+    if (!name) {
+      // Name is required - skip this contact
+      return null;
     }
 
-    // Reset the file input
-    event.target.value = "";
+    // Build the normalized contact object with only valid fields
+    const normalized: ContactInsert = {
+      name,
+      status: validateEnum(contact.status, validStatuses) ?? undefined,
+      initial_touchpoint: emptyToNull(contact.initial_touchpoint),
+      last_touchpoint: emptyToNull(contact.last_touchpoint),
+      next_follow_up: emptyToNull(contact.next_follow_up),
+      temperature: validateEnum(contact.temperature, validTemperatures),
+      proposal_sent: toBoolean(contact.proposal_sent),
+      brief: emptyToNull(contact.brief),
+      phone: emptyToNull(contact.phone),
+      email: emptyToNull(contact.email),
+      referral_source: emptyToNull(contact.referral_source),
+      referral_type: validateEnum(contact.referral_type, validReferralTypes),
+      good_fit: validateEnum(contact.good_fit, validGoodFitOptions),
+      notes: emptyToNull(contact.notes),
+    };
+
+    return normalized;
+  };
+
+  // Handle import from pasted JSON text
+  const handleImportFromText = async (jsonText: string) => {
+    const importedContacts = JSON.parse(jsonText);
+
+    if (!Array.isArray(importedContacts)) {
+      throw new Error("Invalid JSON format. Expected an array of contacts.");
+    }
+
+    // Normalize each contact, filtering out invalid ones (missing name)
+    const normalizedContacts: ContactInsert[] = [];
+    let skippedCount = 0;
+
+    for (const contact of importedContacts) {
+      const normalized = normalizeContactForImport(contact as Record<string, unknown>);
+      if (normalized) {
+        normalizedContacts.push(normalized);
+      } else {
+        skippedCount++;
+      }
+    }
+
+    if (normalizedContacts.length === 0) {
+      throw new Error("No valid contacts to import. All contacts were missing required fields.");
+    }
+
+    const { error } = await supabase
+      .from("contacts")
+      .insert(normalizedContacts);
+
+    if (error) throw error;
+
+    // Build toast message
+    let description = `Successfully imported ${normalizedContacts.length} contact${normalizedContacts.length === 1 ? "" : "s"}.`;
+    if (skippedCount > 0) {
+      description += ` ${skippedCount} contact${skippedCount === 1 ? " was" : "s were"} skipped (missing name).`;
+    }
+
+    toast({
+      title: "Import Complete",
+      description,
+    });
+
+    fetchContacts();
   };
 
   return (
@@ -363,17 +425,9 @@ export function DashboardClient() {
                 <Download className="mr-2 h-4 w-4" />
                 Export JSON
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <label className="cursor-pointer flex items-center">
-                  <Upload className="mr-2 h-4 w-4" />
-                  Import JSON
-                  <input
-                    type="file"
-                    accept=".json"
-                    onChange={handleImport}
-                    className="hidden"
-                  />
-                </label>
+              <DropdownMenuItem onClick={() => setIsImportModalOpen(true)}>
+                <Upload className="mr-2 h-4 w-4" />
+                Import JSON
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -524,6 +578,13 @@ export function DashboardClient() {
         contactName={markdownModal.contact?.name}
         value={markdownModal.contact?.[markdownModal.field] || null}
         onSave={handleSaveMarkdown}
+      />
+
+      {/* Import JSON Modal */}
+      <ImportJsonModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImport={handleImportFromText}
       />
     </div>
   );
