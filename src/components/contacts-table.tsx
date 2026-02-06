@@ -55,6 +55,8 @@ import {
   Loader2,
   Columns,
   Eye,
+  Copy,
+  Check,
 } from "lucide-react";
 import { format, differenceInDays, parseISO, isValid } from "date-fns";
 import { formatPhoneNumber } from "@/lib/phone-formatter";
@@ -172,6 +174,64 @@ function EditableTextCell({
       }}
     >
       {value || <span className="text-muted-foreground">{placeholder}</span>}
+    </div>
+  );
+}
+
+// Copyable text cell with hover copy button
+function CopyableTextCell({
+  value,
+  onSave,
+  placeholder = "—",
+  formatValue,
+  className = "",
+  copyLabel = "Value",
+}: {
+  value: string | null;
+  onSave: (value: string | null) => Promise<void>;
+  placeholder?: string;
+  formatValue?: (v: string) => string;
+  className?: string;
+  copyLabel?: string;
+}) {
+  const [isHovered, setIsHovered] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!value) return;
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <div 
+      className="flex items-center gap-1"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => { setIsHovered(false); setCopied(false); }}
+    >
+      <EditableTextCell
+        value={value}
+        onSave={onSave}
+        placeholder={placeholder}
+        formatValue={formatValue}
+        className={className}
+      />
+      {value && isHovered && (
+        <button
+          onClick={handleCopy}
+          className="p-1 rounded hover:bg-muted transition-colors"
+          title={`Copy ${copyLabel}`}
+        >
+          {copied ? (
+            <Check className="h-3 w-3 text-green-500" />
+          ) : (
+            <Copy className="h-3 w-3 text-muted-foreground" />
+          )}
+        </button>
+      )}
     </div>
   );
 }
@@ -416,11 +476,12 @@ export function ContactsTable({
           </Button>
         ),
         cell: ({ row }) => (
-          <EditableTextCell
+          <CopyableTextCell
             value={row.original.name}
             onSave={(value) => onFieldUpdate(row.original.id, "name", value)}
             placeholder="Enter name"
             className="font-bold"
+            copyLabel="Name"
           />
         ),
       },
@@ -476,10 +537,11 @@ export function ContactsTable({
         accessorKey: "email",
         header: "Email",
         cell: ({ row }) => (
-          <EditableTextCell
+          <CopyableTextCell
             value={row.original.email}
             onSave={(value) => onFieldUpdate(row.original.id, "email", value)}
             placeholder="—"
+            copyLabel="Email"
           />
         ),
       },
@@ -487,11 +549,12 @@ export function ContactsTable({
         accessorKey: "phone",
         header: "Phone",
         cell: ({ row }) => (
-          <EditableTextCell
+          <CopyableTextCell
             value={row.original.phone}
             onSave={(value) => onFieldUpdate(row.original.id, "phone", value)}
             placeholder="—"
             formatValue={formatPhoneNumber}
+            copyLabel="Phone"
           />
         ),
       },

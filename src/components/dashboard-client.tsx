@@ -30,7 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 export function DashboardClient() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<ContactStatus>("Prospect");
+  const [activeTab, setActiveTab] = useState<ContactStatus | "All">("Prospect");
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isNewContact, setIsNewContact] = useState(false);
@@ -84,11 +84,14 @@ export function DashboardClient() {
   const filteredContacts = useMemo(() => {
     return contacts.filter((contact) => {
       // Status filter (from tab)
-      // NULL status contacts should appear in Prospect tab
-      if (activeTab === "Prospect") {
-        if (contact.status !== "Prospect" && contact.status !== null) return false;
-      } else {
-        if (contact.status !== activeTab) return false;
+      // Skip status filtering for "All" tab
+      if (activeTab !== "All") {
+        // NULL status contacts should appear in Prospect tab
+        if (activeTab === "Prospect") {
+          if (contact.status !== "Prospect" && contact.status !== null) return false;
+        } else {
+          if (contact.status !== activeTab) return false;
+        }
       }
       
       // Search filter
@@ -435,7 +438,7 @@ export function DashboardClient() {
       </div>
 
       {/* Tabs for status filtering */}
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ContactStatus)}>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ContactStatus | "All")}>
         <TabsList className="mb-4">
           <TabsTrigger value="Prospect">
             Prospects
@@ -453,6 +456,12 @@ export function DashboardClient() {
             Archived
             <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs">
               {contacts.filter((c) => c.status === "Archived").length}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="All">
+            All
+            <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs">
+              {contacts.length}
             </span>
           </TabsTrigger>
         </TabsList>
@@ -490,11 +499,11 @@ export function DashboardClient() {
               value={proposalFilter}
               onValueChange={(value) => setProposalFilter(value as "all" | "yes" | "no")}
             >
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Proposal" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="all">Proposal Status - All</SelectItem>
                 <SelectItem value="yes">Sent</SelectItem>
                 <SelectItem value="no">Not Sent</SelectItem>
               </SelectContent>
@@ -519,10 +528,10 @@ export function DashboardClient() {
           </div>
         </div>
 
-        {/* Counter */}
-        <div className="mb-4 text-sm text-muted-foreground">
-          Total Active {activeTab === "Prospect" ? "Prospects" : activeTab}: {" "}
-          <span className="font-semibold text-foreground">{filteredContacts.length}</span>
+        {/* Counter - larger for easier reading */}
+        <div className="mb-4 text-lg text-muted-foreground">
+          Total {activeTab === "All" ? "Contacts" : activeTab === "Prospect" ? "Prospects" : activeTab}: {" "}
+          <span className="font-bold text-foreground text-xl">{filteredContacts.length}</span>
         </div>
 
         {/* Table content */}
@@ -549,6 +558,17 @@ export function DashboardClient() {
           />
         </TabsContent>
         <TabsContent value="Archived" className="mt-0">
+          <ContactsTable
+            contacts={filteredContacts}
+            loading={loading}
+            onEdit={handleEditContact}
+            onStatusChange={handleStatusChange}
+            onDelete={handleDeleteContact}
+            onFieldUpdate={handleFieldUpdate}
+            onViewMarkdown={handleViewMarkdown}
+          />
+        </TabsContent>
+        <TabsContent value="All" className="mt-0">
           <ContactsTable
             contacts={filteredContacts}
             loading={loading}
