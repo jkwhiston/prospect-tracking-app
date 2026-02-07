@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -428,6 +428,29 @@ export function ContactsTable({
     step: number;
   }>({ contact: null, step: 0 });
 
+  // Scroll detection for sticky Name column highlight (direct DOM for zero-lag)
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const stickyHeaderRef = useRef<HTMLTableCellElement>(null);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    const header = stickyHeaderRef.current;
+    if (!container || !header) return;
+
+    const handleScroll = () => {
+      if (container.scrollLeft > 0) {
+        header.classList.add("bg-zinc-500", "text-white");
+        header.classList.remove("bg-zinc-700");
+      } else {
+        header.classList.remove("bg-zinc-500", "text-white");
+        header.classList.add("bg-zinc-700");
+      }
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [loading]);
+
   // Load column visibility from localStorage
   useEffect(() => {
     const saved = localStorage.getItem(COLUMN_VISIBILITY_KEY);
@@ -816,7 +839,7 @@ export function ContactsTable({
         </DropdownMenu>
       </div>
 
-      <div className="rounded-md border overflow-x-auto">
+      <div ref={scrollContainerRef} className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -824,10 +847,11 @@ export function ContactsTable({
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
+                    ref={header.column.id === "name" ? stickyHeaderRef : undefined}
                     className={cn(
                       "whitespace-nowrap",
                       header.column.id === "name" &&
-                        "sticky left-0 z-20 bg-zinc-700"
+                        "sticky left-0 z-20 transition-colors duration-200 bg-zinc-700"
                     )}
                   >
                     {header.isPlaceholder
