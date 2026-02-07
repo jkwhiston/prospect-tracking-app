@@ -59,6 +59,7 @@ import {
   Check,
 } from "lucide-react";
 import { format, differenceInDays, parseISO, isValid } from "date-fns";
+import { cn } from "@/lib/utils";
 import { formatPhoneNumber } from "@/lib/phone-formatter";
 import type { Contact, ContactStatus, Temperature, ReferralType, GoodFit } from "@/types/contact";
 import { TEMPERATURES, REFERRAL_TYPES, GOOD_FIT_OPTIONS, CONTACT_STATUSES } from "@/types/contact";
@@ -821,7 +822,14 @@ export function ContactsTable({
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className="whitespace-nowrap">
+                  <TableHead
+                    key={header.id}
+                    className={cn(
+                      "whitespace-nowrap",
+                      header.column.id === "name" &&
+                        "sticky left-0 z-20 bg-zinc-700"
+                    )}
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -841,7 +849,14 @@ export function ContactsTable({
                   data-state={row.getIsSelected() && "selected"}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="whitespace-nowrap">
+                    <TableCell
+                      key={cell.id}
+                      className={cn(
+                        "whitespace-nowrap",
+                        cell.column.id === "name" &&
+                          "sticky left-0 z-10 bg-background group-even:bg-muted shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]"
+                      )}
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()
