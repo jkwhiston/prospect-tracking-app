@@ -19,15 +19,18 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Download, Upload, Settings, Search } from "lucide-react";
+import { Plus, Download, Upload, Settings, Search, Sun, Moon } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase/browser";
 import type { Contact, ContactInsert, ContactStatus, Temperature, ReferralType, GoodFit } from "@/types/contact";
 import { TEMPERATURES, REFERRAL_TYPES, CONTACT_STATUSES, GOOD_FIT_OPTIONS } from "@/types/contact";
 import { useToast } from "@/hooks/use-toast";
+import { useTheme } from "@/components/theme-provider";
 
 export function DashboardClient() {
+  const { theme, setTheme } = useTheme();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<ContactStatus | "All">("Prospect");
@@ -431,6 +434,20 @@ export function DashboardClient() {
               <DropdownMenuItem onClick={() => setIsImportModalOpen(true)}>
                 <Upload className="mr-2 h-4 w-4" />
                 Import JSON
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+                {theme === "dark" ? (
+                  <>
+                    <Sun className="mr-2 h-4 w-4" />
+                    Light Mode
+                  </>
+                ) : (
+                  <>
+                    <Moon className="mr-2 h-4 w-4" />
+                    Dark Mode
+                  </>
+                )}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

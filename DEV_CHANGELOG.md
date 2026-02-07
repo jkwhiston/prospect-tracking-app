@@ -4,6 +4,41 @@ This document tracks development changes for AI agents and developers working on
 
 ---
 
+## 2026-02-07: Password Protection & Table Layout Overhaul
+
+### Site Authentication
+- Added master password protection for the entire site
+- `src/middleware.ts` - Next.js middleware protects all routes, redirects unauthenticated users to `/login`
+- `src/app/login/page.tsx` - Login page with password form, lock icon, and error handling
+- `src/app/api/auth/login/route.ts` - API route validates password against `MASTER_PASSWORD` env var
+- Auth session stored in httpOnly cookie (`prospect-tracker-auth`), expires after 7 days
+- Cookie is `secure` in production, `sameSite: lax`
+- Public routes (no auth required): `/login`, `/api/auth/login`
+
+### Full-Width Table Layout
+- Removed `container max-w-screen-2xl` constraint from dashboard (`dashboard-client.tsx`)
+- Replaced with `w-full` so the table stretches to fill the entire viewport
+- Applied same change to header in `layout.tsx` for consistent alignment
+- All 15 columns now visible when zoomed out without horizontal scrolling
+
+### Sticky Name Column
+- Name column stays pinned to the left edge when scrolling horizontally
+- Header cell: `sticky left-0 z-20` with opaque `bg-zinc-700` background
+- Body cells: `sticky left-0 z-10` with `bg-background` and `group-even:bg-muted` for zebra stripe matching
+- Subtle drop shadow (`shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]`) on body cells as visual separator
+- Removed `overflow-auto` from inner `Table` wrapper (`table.tsx`) so sticky positioning works correctly
+- Added `group` class to `TableRow` for `group-even:` child targeting
+
+### Scroll-Aware Name Header Highlight
+- Name column header changes to a lighter background (`bg-zinc-500`) with `text-white` when scrolled
+- Returns to normal `bg-zinc-700` when scroll position is back to 0
+- Smooth 200ms CSS transition (`transition-colors duration-200`)
+- Uses direct DOM manipulation (`classList.add/remove`) via refs for zero-lag response
+- `scrollContainerRef` on the overflow container, `stickyHeaderRef` on the Name `<th>`
+- `useEffect` depends on `[loading]` to attach listener after table renders
+
+---
+
 ## 2026-02-06: UI/UX Improvements
 
 ### Table Styling
@@ -63,12 +98,15 @@ This document tracks development changes for AI agents and developers working on
 ## Architecture Notes
 
 ### Key Files
-- `src/app/layout.tsx` - Root layout with header and metadata
+- `src/app/layout.tsx` - Root layout with full-width header and metadata
 - `src/app/icon.svg` - Favicon (users/people icon)
-- `src/components/contacts-table.tsx` - Main table with inline editing
-- `src/components/dashboard-client.tsx` - Dashboard with tabs and filters
+- `src/app/login/page.tsx` - Password login page
+- `src/app/api/auth/login/route.ts` - Login API route
+- `src/middleware.ts` - Auth middleware protecting all routes
+- `src/components/contacts-table.tsx` - Main table with inline editing, sticky Name column, scroll detection
+- `src/components/dashboard-client.tsx` - Full-width dashboard with tabs and filters
 - `src/components/markdown-modal.tsx` - Modal for viewing/editing Briefs and Notes
-- `src/components/ui/table.tsx` - Base table components with styling
+- `src/components/ui/table.tsx` - Base table components with styling (group rows, no inner overflow)
 - `src/components/ui/select.tsx` - Dropdown select component
 
 ### Inline Editing Components
@@ -85,6 +123,14 @@ This document tracks development changes for AI agents and developers working on
 4. Field updates call `onFieldUpdate` → Supabase update → local state update
 5. Markdown fields open `MarkdownModal` for viewing/editing
 
+### Authentication Flow
+1. Middleware checks for `prospect-tracker-auth` cookie on every request
+2. If missing/invalid, redirects to `/login`
+3. Login page POSTs password to `/api/auth/login`
+4. API route compares against `MASTER_PASSWORD` env var
+5. On success, sets httpOnly cookie (7-day expiry) and redirects to `/`
+
 ### Environment Variables
 - `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anonymous key
+- `MASTER_PASSWORD` - Master password for site access (server-side only, not prefixed with NEXT_PUBLIC_)

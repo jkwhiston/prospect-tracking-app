@@ -57,3 +57,19 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Sticky Name column header - theme-aware colors for DOM-based toggling */
+.sticky-header-default {
+  background-color: hsl(var(--muted));
+}
+.sticky-header-scrolled {
+  background-color: hsl(210 40% 75%);
+  color: hsl(var(--foreground));
+}
+.dark .sticky-header-default {
+  background-color: rgb(63 63 70); /* zinc-700 */
+}
+.dark .sticky-header-scrolled {
+  background-color: rgb(113 113 122); /* zinc-500 */
+  color: white;
+}

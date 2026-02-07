@@ -439,11 +439,11 @@ export function ContactsTable({
 
     const handleScroll = () => {
       if (container.scrollLeft > 0) {
-        header.classList.add("bg-zinc-500", "text-white");
-        header.classList.remove("bg-zinc-700");
+        header.classList.add("sticky-header-scrolled");
+        header.classList.remove("sticky-header-default");
       } else {
-        header.classList.remove("bg-zinc-500", "text-white");
-        header.classList.add("bg-zinc-700");
+        header.classList.remove("sticky-header-scrolled");
+        header.classList.add("sticky-header-default");
       }
     };
 
@@ -839,7 +839,7 @@ export function ContactsTable({
         </DropdownMenu>
       </div>
 
-      <div ref={scrollContainerRef} className="rounded-md border overflow-x-auto">
+      <div ref={scrollContainerRef} className="rounded-md border overflow-auto max-h-[calc(100vh-280px)]">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -849,9 +849,10 @@ export function ContactsTable({
                     key={header.id}
                     ref={header.column.id === "name" ? stickyHeaderRef : undefined}
                     className={cn(
-                      "whitespace-nowrap",
-                      header.column.id === "name" &&
-                        "sticky left-0 z-20 transition-colors duration-200 bg-zinc-700"
+                      "whitespace-nowrap sticky top-0",
+                      header.column.id === "name"
+                        ? "left-0 z-30 transition-colors duration-200 sticky-header-default"
+                        : "z-20 bg-muted dark:bg-zinc-700"
                     )}
                   >
                     {header.isPlaceholder
