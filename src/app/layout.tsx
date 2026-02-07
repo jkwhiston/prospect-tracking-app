@@ -23,7 +23,7 @@ export default function RootLayout({
       <body className={`${inter.className} min-h-screen bg-background text-foreground antialiased`}>
         <div className="relative flex min-h-screen flex-col">
           <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            <div className="container flex h-14 max-w-screen-2xl items-center px-4">
+            <div className="flex h-14 w-full items-center px-4">
               <div className="flex items-center space-x-2">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"

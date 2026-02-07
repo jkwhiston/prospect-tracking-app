@@ -403,7 +403,7 @@ export function DashboardClient() {
   };
 
   return (
-    <div className="container max-w-screen-2xl px-4 py-6">
+    <div className="w-full px-4 py-6">
       {/* Header with title and actions */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
         <div>
