@@ -257,7 +257,7 @@ export function DashboardClient() {
 
       toast({
         title: "Saved",
-        description: `${markdownModal.field === "brief" ? "Brief" : "Notes"} updated successfully.`,
+        description: `${markdownModal.field === "brief" ? "Briefs" : "Notes"} updated successfully.`,
       });
     } catch (error) {
       console.error("Error saving markdown:", error);
@@ -611,7 +611,7 @@ export function DashboardClient() {
       <MarkdownModal
         isOpen={markdownModal.isOpen}
         onClose={() => setMarkdownModal({ isOpen: false, contact: null, field: "brief" })}
-        title={markdownModal.field === "brief" ? "Brief" : "Notes"}
+        title={markdownModal.field === "brief" ? "Briefs" : "Notes"}
         contactName={markdownModal.contact?.name}
         value={markdownModal.contact?.[markdownModal.field] || null}
         onSave={handleSaveMarkdown}
