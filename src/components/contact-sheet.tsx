@@ -20,8 +20,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { CopyButton } from "@/components/copy-button";
-import { Pencil, Eye, Save, Loader2 } from "lucide-react";
+import { Pencil, Eye, Save, Loader2, CalendarIcon, X } from "lucide-react";
+import { format, parseISO, isValid } from "date-fns";
+import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { createBrowserClient } from "@/lib/supabase/browser";
@@ -59,6 +63,76 @@ const EMPTY_CONTACT: Partial<ContactInsert> = {
   good_fit: null,
   notes: "",
 };
+
+function DatePickerField({
+  value,
+  onChange,
+}: {
+  value: string | null | undefined;
+  onChange: (value: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(value || "");
+
+  // Keep input in sync when value changes externally
+  useEffect(() => {
+    setInputValue(value || "");
+  }, [value]);
+
+  const selectedDate = value ? parseISO(value) : undefined;
+  const validSelectedDate = selectedDate && isValid(selectedDate) ? selectedDate : undefined;
+
+  const handleCalendarSelect = (day: Date | undefined) => {
+    if (day) {
+      const iso = format(day, "yyyy-MM-dd");
+      setInputValue(iso);
+      onChange(iso);
+      setOpen(false);
+    }
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <div className="flex gap-2">
+        <Input
+          type="date"
+          value={inputValue}
+          onChange={(e) => {
+            setInputValue(e.target.value);
+            onChange(e.target.value || null);
+          }}
+        />
+        {value && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0 text-muted-foreground hover:text-destructive"
+            onClick={() => {
+              setInputValue("");
+              onChange(null);
+            }}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="icon" className="shrink-0">
+            <CalendarIcon className="h-4 w-4" />
+          </Button>
+        </PopoverTrigger>
+      </div>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={validSelectedDate}
+          onSelect={handleCalendarSelect}
+          defaultMonth={validSelectedDate}
+          autoFocus
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export function ContactSheet({
   contact,
@@ -273,17 +347,15 @@ export function ContactSheet({
           <div className="space-y-2">
             <Label htmlFor="initial_touchpoint">Initial Touchpoint</Label>
             {isEditing ? (
-              <Input
-                id="initial_touchpoint"
-                type="date"
-                value={formData.initial_touchpoint || ""}
-                onChange={(e) =>
-                  handleInputChange("initial_touchpoint", e.target.value || null)
-                }
+              <DatePickerField
+                value={formData.initial_touchpoint}
+                onChange={(val) => handleInputChange("initial_touchpoint", val)}
               />
             ) : (
               <p className="text-sm">
-                {formData.initial_touchpoint || "—"}
+                {formData.initial_touchpoint
+                  ? format(parseISO(formData.initial_touchpoint), "MMM d, yyyy")
+                  : "—"}
               </p>
             )}
           </div>
@@ -292,17 +364,15 @@ export function ContactSheet({
           <div className="space-y-2">
             <Label htmlFor="last_touchpoint">Last Touchpoint</Label>
             {isEditing ? (
-              <Input
-                id="last_touchpoint"
-                type="date"
-                value={formData.last_touchpoint || ""}
-                onChange={(e) =>
-                  handleInputChange("last_touchpoint", e.target.value || null)
-                }
+              <DatePickerField
+                value={formData.last_touchpoint}
+                onChange={(val) => handleInputChange("last_touchpoint", val)}
               />
             ) : (
               <p className="text-sm">
-                {formData.last_touchpoint || "—"}
+                {formData.last_touchpoint
+                  ? format(parseISO(formData.last_touchpoint), "MMM d, yyyy")
+                  : "—"}
               </p>
             )}
           </div>
@@ -311,17 +381,15 @@ export function ContactSheet({
           <div className="space-y-2">
             <Label htmlFor="next_follow_up">Next Follow Up</Label>
             {isEditing ? (
-              <Input
-                id="next_follow_up"
-                type="date"
-                value={formData.next_follow_up || ""}
-                onChange={(e) =>
-                  handleInputChange("next_follow_up", e.target.value || null)
-                }
+              <DatePickerField
+                value={formData.next_follow_up}
+                onChange={(val) => handleInputChange("next_follow_up", val)}
               />
             ) : (
               <p className="text-sm">
-                {formData.next_follow_up || "—"}
+                {formData.next_follow_up
+                  ? format(parseISO(formData.next_follow_up), "MMM d, yyyy")
+                  : "—"}
               </p>
             )}
           </div>

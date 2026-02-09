@@ -209,15 +209,21 @@ export function DashboardClient() {
         title: "Updated",
         description: "Field updated successfully.",
       });
-    } catch (error) {
-      console.error("Error updating field:", error);
+    } catch (error: unknown) {
+      const message =
+        error && typeof error === "object" && "message" in error
+          ? (error as { message: string }).message
+          : "Failed to update field.";
+      console.error("Error updating field:", message, error);
       toast({
         title: "Error",
-        description: "Failed to update field.",
+        description: message,
         variant: "destructive",
       });
       // Refetch to revert optimistic update
       fetchContacts();
+      // Re-throw so callers (e.g. dialogs) can handle the failure
+      throw error;
     }
   };
 

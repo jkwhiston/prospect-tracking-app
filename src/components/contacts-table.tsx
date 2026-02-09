@@ -46,6 +46,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import {
   MoreHorizontal,
   ArrowUpDown,
@@ -57,6 +59,9 @@ import {
   Eye,
   Copy,
   Check,
+  CalendarIcon,
+  X,
+  Fingerprint,
 } from "lucide-react";
 import { format, differenceInDays, parseISO, isValid } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -75,6 +80,10 @@ interface ContactsTableProps {
 }
 
 const COLUMN_VISIBILITY_KEY = "prospect-tracker-column-visibility";
+
+const DEFAULT_COLUMN_VISIBILITY: VisibilityState = {
+  initial_touchpoint: false,
+};
 
 function getFollowUpColor(dateString: string | null): string {
   if (!dateString) return "";
@@ -247,59 +256,99 @@ function EditableDateCell({
   onSave: (value: string | null) => Promise<void>;
   colorClass?: string;
 }) {
-  const [isEditing, setIsEditing] = useState(false);
+  const [open, setOpen] = useState(false);
   const [editValue, setEditValue] = useState(value || "");
   const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = async () => {
-    if (editValue !== (value || "")) {
+  const handleSave = async (newValue: string) => {
+    const saveValue = newValue || null;
+    if (saveValue !== (value || null)) {
       setIsSaving(true);
       try {
-        await onSave(editValue || null);
+        await onSave(saveValue);
       } finally {
         setIsSaving(false);
       }
     }
-    setIsEditing(false);
+    setOpen(false);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      handleSave();
-    } else if (e.key === "Escape") {
-      setEditValue(value || "");
-      setIsEditing(false);
+  const handleCalendarSelect = (day: Date | undefined) => {
+    if (day) {
+      const iso = format(day, "yyyy-MM-dd");
+      setEditValue(iso);
+      handleSave(iso);
     }
   };
 
-  if (isEditing) {
-    return (
-      <div className="flex items-center gap-1">
-        <Input
-          type="date"
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onBlur={handleSave}
-          onKeyDown={handleKeyDown}
-          className="h-8 w-[130px]"
-          autoFocus
-          disabled={isSaving}
-        />
-        {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-      </div>
-    );
-  }
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleSave(editValue);
+    } else if (e.key === "Escape") {
+      setEditValue(value || "");
+      setOpen(false);
+    }
+  };
+
+  const selectedDate = value ? parseISO(value) : undefined;
+  const validSelectedDate = selectedDate && isValid(selectedDate) ? selectedDate : undefined;
 
   return (
-    <div
-      className={`cursor-pointer hover:bg-muted/50 px-2 py-1 rounded -mx-2 -my-1 min-h-[28px] flex items-center ${colorClass}`}
-      onClick={(e) => {
-        e.stopPropagation();
-        setIsEditing(true);
-      }}
-    >
-      {formatDate(value)}
-    </div>
+    <Popover open={open} onOpenChange={(isOpen) => {
+      if (isOpen) {
+        setEditValue(value || "");
+      }
+      setOpen(isOpen);
+    }}>
+      <PopoverTrigger asChild>
+        <div
+          className={cn(
+            "cursor-pointer hover:bg-muted/50 px-2 py-1 rounded -mx-2 -my-1 min-h-[28px] flex items-center gap-1",
+            colorClass
+          )}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {isSaving ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <>
+              <span>{formatDate(value)}</span>
+              <CalendarIcon className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
+            </>
+          )}
+        </div>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <div className="flex items-center gap-1 p-3 border-b">
+          <Input
+            type="date"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={handleInputKeyDown}
+            className="h-8"
+            disabled={isSaving}
+          />
+          {value && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+              onClick={() => handleSave("")}
+              disabled={isSaving}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+        <Calendar
+          mode="single"
+          selected={validSelectedDate}
+          onSelect={handleCalendarSelect}
+          defaultMonth={validSelectedDate}
+          autoFocus
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -422,11 +471,18 @@ export function ContactsTable({
   onViewMarkdown,
 }: ContactsTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    initial_touchpoint: false,
+  });
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     contact: Contact | null;
     step: number;
   }>({ contact: null, step: 0 });
+  const [editIdDialog, setEditIdDialog] = useState<{
+    contact: Contact | null;
+    value: string;
+    saving: boolean;
+  }>({ contact: null, value: "", saving: false });
 
   // Scroll detection for sticky Name column highlight (direct DOM for zero-lag)
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -451,12 +507,13 @@ export function ContactsTable({
     return () => container.removeEventListener("scroll", handleScroll);
   }, [loading]);
 
-  // Load column visibility from localStorage
+  // Load column visibility from localStorage, merging with defaults
   useEffect(() => {
     const saved = localStorage.getItem(COLUMN_VISIBILITY_KEY);
     if (saved) {
       try {
-        setColumnVisibility(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        setColumnVisibility({ ...DEFAULT_COLUMN_VISIBILITY, ...parsed });
       } catch (e) {
         console.error("Failed to parse column visibility:", e);
       }
@@ -754,6 +811,15 @@ export function ContactsTable({
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
+                  onClick={() =>
+                    setEditIdDialog({ contact, value: contact.id, saving: false })
+                  }
+                >
+                  <Fingerprint className="mr-2 h-4 w-4" />
+                  View / Edit ID
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
                   onClick={() => handleDeleteClick(contact)}
                   className="text-destructive focus:text-destructive"
                 >
@@ -930,6 +996,75 @@ export function ContactsTable({
               {deleteConfirmation.step === 1
                 ? "Yes, delete"
                 : "Delete permanently"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View / Edit ID Dialog */}
+      <Dialog
+        open={editIdDialog.contact !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditIdDialog({ contact: null, value: "", saving: false });
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Contact ID</DialogTitle>
+            <DialogDescription>
+              View or edit the unique identifier for {editIdDialog.contact?.name || "this contact"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2 space-y-2">
+            <Input
+              value={editIdDialog.value}
+              onChange={(e) =>
+                setEditIdDialog((prev) => ({ ...prev, value: e.target.value }))
+              }
+              className="font-mono text-sm"
+              disabled={editIdDialog.saving}
+            />
+            {editIdDialog.value.trim() &&
+              editIdDialog.value !== editIdDialog.contact?.id &&
+              !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editIdDialog.value.trim()) && (
+                <p className="text-sm text-destructive">
+                  Must be a valid UUID format (e.g. 550e8400-e29b-41d4-a716-446655440000)
+                </p>
+              )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() =>
+                setEditIdDialog({ contact: null, value: "", saving: false })
+              }
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={
+                editIdDialog.saving ||
+                !editIdDialog.value.trim() ||
+                editIdDialog.value === editIdDialog.contact?.id ||
+                !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editIdDialog.value.trim())
+              }
+              onClick={async () => {
+                if (!editIdDialog.contact) return;
+                const oldId = editIdDialog.contact.id;
+                const newId = editIdDialog.value.trim();
+                setEditIdDialog((prev) => ({ ...prev, saving: true }));
+                try {
+                  await onFieldUpdate(oldId, "id", newId);
+                  setEditIdDialog({ contact: null, value: "", saving: false });
+                } catch {
+                  setEditIdDialog((prev) => ({ ...prev, saving: false }));
+                }
+              }}
+            >
+              {editIdDialog.saving ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>
