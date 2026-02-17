@@ -77,12 +77,14 @@ interface ContactsTableProps {
   onDelete: (contact: Contact) => void;
   onFieldUpdate: (contactId: string, field: string, value: unknown) => Promise<void>;
   onViewMarkdown: (contact: Contact, field: "brief" | "notes") => void;
+  externalSortBy?: number;
 }
 
 const COLUMN_VISIBILITY_KEY = "prospect-tracker-column-visibility";
 
 const DEFAULT_COLUMN_VISIBILITY: VisibilityState = {
   initial_touchpoint: false,
+  created_at: false,
 };
 
 function getFollowUpColor(dateString: string | null): string {
@@ -469,8 +471,14 @@ export function ContactsTable({
   onDelete,
   onFieldUpdate,
   onViewMarkdown,
+  externalSortBy,
 }: ContactsTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
+
+  // Clear column sorting when the external sort dropdown changes
+  useEffect(() => {
+    setSorting([]);
+  }, [externalSortBy]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     initial_touchpoint: false,
   });
@@ -770,6 +778,26 @@ export function ContactsTable({
         ),
       },
       {
+        accessorKey: "created_at",
+        header: ({ column }) => (
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            className="-ml-4"
+          >
+            Date Added
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        ),
+        cell: ({ row }) => {
+          const raw = row.original.created_at;
+          if (!raw) return <span className="text-muted-foreground">—</span>;
+          const date = parseISO(raw);
+          if (!isValid(date)) return <span className="text-muted-foreground">—</span>;
+          return <span>{format(date, "MMM d, yyyy")}</span>;
+        },
+      },
+      {
         id: "actions",
         cell: ({ row }) => {
           const contact = row.original;
@@ -897,6 +925,8 @@ export function ContactsTable({
                       ? "Referral Type"
                       : column.id === "good_fit"
                       ? "Good Fit"
+                      : column.id === "created_at"
+                      ? "Date Added"
                       : column.id}
                   </DropdownMenuCheckboxItem>
                 );

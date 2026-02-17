@@ -4,6 +4,34 @@ This document tracks development changes for AI agents and developers working on
 
 ---
 
+## 2026-02-17: Phone Number Formatting & Creation Date Sorting
+
+### Phone Number Auto-Format (Country Code Support)
+- Updated `src/lib/phone-formatter.ts` to handle 11-digit US numbers with leading `1` or `+1`
+- `formatPhoneNumber` now strips the country code before formatting, so `15039497307` and `+15039497307` both auto-format to `(503) 949-7307`
+- `stripPhoneNumber` and `isValidPhoneNumber` also normalize 11-digit inputs
+- All existing consumers (`contacts-table.tsx`, `contact-sheet.tsx`) benefit automatically
+
+### Creation Date Sort Control
+- Added "Creation Date - Newest / Oldest" dropdown to the filter bar in `dashboard-client.tsx`
+- Placed after the Referrals filter, next to the search bar and other filters
+- Defaults to "Creation Date - Newest" (`created_at desc`)
+- Uses a `DropdownMenu` (not Select) so re-clicking the same option always re-applies the sort
+- Increments a `sortResetKey` counter on each click, passed to `ContactsTable` to clear any active column sort
+
+### Hidden "Date Added" Column
+- Added a `created_at` column definition in `contacts-table.tsx` with sortable header ("Date Added")
+- Hidden by default via `DEFAULT_COLUMN_VISIBILITY` (`created_at: false`)
+- Can be toggled visible from the Columns dropdown
+- Displays formatted date (e.g., "Feb 17, 2026")
+
+### Sort Conflict Resolution
+- `ContactsTable` accepts an `externalSortBy` (reset key) prop
+- A `useEffect` clears the table's internal column sorting state whenever the creation date dropdown is used
+- Prevents column header sorts (e.g., Name) from permanently overriding the creation date sort
+
+---
+
 ## 2026-02-07: Password Protection & Table Layout Overhaul
 
 ### Site Authentication

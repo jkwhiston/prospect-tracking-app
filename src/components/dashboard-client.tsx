@@ -22,7 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Download, Upload, Settings, Search, Sun, Moon } from "lucide-react";
+import { Plus, Download, Upload, Settings, Search, Sun, Moon, ChevronsUpDown } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase/browser";
 import type { Contact, ContactInsert, ContactStatus, Temperature, ReferralType, GoodFit } from "@/types/contact";
 import { TEMPERATURES, REFERRAL_TYPES, CONTACT_STATUSES, GOOD_FIT_OPTIONS } from "@/types/contact";
@@ -53,6 +53,8 @@ export function DashboardClient() {
   const [temperatureFilter, setTemperatureFilter] = useState<Temperature | "all">("all");
   const [proposalFilter, setProposalFilter] = useState<"all" | "yes" | "no">("all");
   const [referralTypeFilter, setReferralTypeFilter] = useState<ReferralType | "all">("all");
+  const [sortBy, setSortBy] = useState<"created_at_desc" | "created_at_asc">("created_at_desc");
+  const [sortResetKey, setSortResetKey] = useState(0);
   
   const { toast } = useToast();
   const supabase = useMemo(() => createBrowserClient(), []);
@@ -83,9 +85,9 @@ export function DashboardClient() {
     fetchContacts();
   }, [fetchContacts]);
 
-  // Filter contacts by status and other criteria
+  // Filter and sort contacts by status and other criteria
   const filteredContacts = useMemo(() => {
-    return contacts.filter((contact) => {
+    const filtered = contacts.filter((contact) => {
       // Status filter (from tab)
       // Skip status filtering for "All" tab
       if (activeTab !== "All") {
@@ -118,7 +120,21 @@ export function DashboardClient() {
       
       return true;
     });
-  }, [contacts, activeTab, searchQuery, temperatureFilter, proposalFilter, referralTypeFilter]);
+
+    // Sort
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case "created_at_desc":
+          return (b.created_at || "").localeCompare(a.created_at || "");
+        case "created_at_asc":
+          return (a.created_at || "").localeCompare(b.created_at || "");
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [contacts, activeTab, searchQuery, temperatureFilter, proposalFilter, referralTypeFilter, sortBy]);
 
   const handleAddContact = () => {
     setSelectedContact(null);
@@ -548,6 +564,27 @@ export function DashboardClient() {
                 ))}
               </SelectContent>
             </Select>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-[230px] justify-between font-normal">
+                  {sortBy === "created_at_desc" ? "Creation Date - Newest" : "Creation Date - Oldest"}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[230px]">
+                <DropdownMenuItem
+                  onClick={() => { setSortBy("created_at_desc"); setSortResetKey((k) => k + 1); }}
+                >
+                  Creation Date - Newest
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => { setSortBy("created_at_asc"); setSortResetKey((k) => k + 1); }}
+                >
+                  Creation Date - Oldest
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -567,6 +604,7 @@ export function DashboardClient() {
             onDelete={handleDeleteContact}
             onFieldUpdate={handleFieldUpdate}
             onViewMarkdown={handleViewMarkdown}
+            externalSortBy={sortResetKey}
           />
         </TabsContent>
         <TabsContent value="Signed On" className="mt-0">
@@ -578,6 +616,7 @@ export function DashboardClient() {
             onDelete={handleDeleteContact}
             onFieldUpdate={handleFieldUpdate}
             onViewMarkdown={handleViewMarkdown}
+            externalSortBy={sortResetKey}
           />
         </TabsContent>
         <TabsContent value="Archived" className="mt-0">
@@ -589,6 +628,7 @@ export function DashboardClient() {
             onDelete={handleDeleteContact}
             onFieldUpdate={handleFieldUpdate}
             onViewMarkdown={handleViewMarkdown}
+            externalSortBy={sortResetKey}
           />
         </TabsContent>
         <TabsContent value="All" className="mt-0">
@@ -600,6 +640,7 @@ export function DashboardClient() {
             onDelete={handleDeleteContact}
             onFieldUpdate={handleFieldUpdate}
             onViewMarkdown={handleViewMarkdown}
+            externalSortBy={sortResetKey}
           />
         </TabsContent>
       </Tabs>
